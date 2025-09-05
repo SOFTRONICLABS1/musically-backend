@@ -95,7 +95,7 @@ functions:
     timeout: 45
     memorySize: 1024
     environment:
-      DATABASE_URL: !Sub "postgresql://postgres:YourSecurePassword123!@${MusicallDevDatabase.Endpoint.Address}:5432/musically?sslmode=require"
+      DATABASE_URL: "postgresql://postgres:YourSecurePassword123!@musically-dev-postgres.ckl0kebdzjck.us-east-1.rds.amazonaws.com:5432/musically?sslmode=require"
       # Redis optional - will use DynamoDB + memory cache if not available
       REDIS_URL: ${env:REDIS_URL, 'redis://localhost:6379/0'}
       PROJECT_NAME: Musically

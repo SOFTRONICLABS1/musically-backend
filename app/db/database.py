@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 # Create engine with conservative settings for Aurora Serverless
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_size=5,  # Increased for better concurrency
-    max_overflow=10,  # Allow overflow connections
+    pool_size=2,  # Conservative for t3.micro (20 connection limit)
+    max_overflow=3,  # Very limited overflow for Lambda
     pool_pre_ping=True,  # Verify connections before using
     pool_recycle=300,  # Recycle connections every 5 minutes
+    pool_timeout=30,  # Wait for available connection
     connect_args={
         "connect_timeout": 10,  # Faster timeout for RDS t3.micro
         "options": "-c statement_timeout=25000",  # 25 second statement timeout
