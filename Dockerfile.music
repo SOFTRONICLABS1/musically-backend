@@ -1,0 +1,37 @@
+FROM public.ecr.aws/lambda/python:3.11
+
+# Install system dependencies for audio processing
+RUN yum update -y && \
+    yum install -y \
+    gcc \
+    g++ \
+    make \
+    wget \
+    tar \
+    xz \
+    libsndfile \
+    libsndfile-devel \
+    && yum clean all
+
+# Install FFmpeg (required for audio extraction)
+RUN cd /tmp && \
+    wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz && \
+    tar -xf ffmpeg-release-amd64-static.tar.xz && \
+    mv ffmpeg-*-amd64-static/ffmpeg /usr/local/bin/ && \
+    mv ffmpeg-*-amd64-static/ffprobe /usr/local/bin/ && \
+    chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe && \
+    rm -rf ffmpeg-*
+
+# Copy requirements first for better caching
+COPY requirements-music.txt ./
+RUN pip install --no-cache-dir -r requirements-music.txt
+
+# Copy application code
+COPY app/ ./app/
+
+# Set environment variables
+ENV PYTHONPATH=/var/task
+ENV PATH=/usr/local/bin:$PATH
+
+# Lambda handler
+CMD ["app.main.handler"]

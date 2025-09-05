@@ -1,0 +1,131 @@
+service: musically-api
+
+provider:
+  name: aws
+  runtime: python3.12
+  region: us-east-1
+  profile: default
+  timeout: 15  # Reduced from 29s
+  memorySize: 512  # Reduced from default 1024MB
+  environment:
+    DATABASE_URL: ${env:DATABASE_URL}
+    PROJECT_NAME: Musically
+    VERSION: 1.0.0
+    AWS_SECRET_NAME: ${env:AWS_SECRET_NAME}
+    SECRET_KEY: ${env:SECRET_KEY}
+    ALGORITHM: ${env:ALGORITHM}
+    ACCESS_TOKEN_EXPIRE_MINUTES: ${env:ACCESS_TOKEN_EXPIRE_MINUTES}
+    REFRESH_TOKEN_EXPIRE_DAYS: ${env:REFRESH_TOKEN_EXPIRE_DAYS}
+    GOOGLE_CLIENT_ID: ${env:GOOGLE_CLIENT_ID}
+    GOOGLE_CLIENT_SECRET: ${env:GOOGLE_CLIENT_SECRET}
+    GOOGLE_IOS_CLIENT_ID: ${env:GOOGLE_IOS_CLIENT_ID}
+
+functions:
+  # Lightweight auth verification - No VPC needed
+  auth-verify:
+    handler: app.main.handler
+    timeout: 10  # Reduced timeout
+    memorySize: 256  # Much smaller memory
+    events:
+      - httpApi:
+          path: /api/v1/auth/google-verify
+          method: POST
+      - httpApi:
+          path: /api/v1/auth/apple-verify
+          method: POST
+      - httpApi:
+          path: /api/v1/auth/debug-env
+          method: GET
+    
+  # Main API - Optimized VPC configuration
+  api:
+    handler: app.main.handler
+    timeout: 25  # Slightly reduced
+    memorySize: 768  # Optimized memory
+    vpc:
+      securityGroupIds:
+        - sg-0467571583addf515
+      subnetIds:
+        - subnet-0060694ba361c816b
+        - subnet-0985770f66be8e30d
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    dockerizePip: non-linux
+    layer: true  # Enable layers for better caching
+    zip: true    # Enable zip compression
+    slim: true   # Remove unnecessary files
+    strip: false
+    pipCmdExtraArgs:
+      - --no-cache-dir  # Don't cache pip downloads
+
+package:
+  individually: true  # Package functions separately
+  patterns:
+    - '!.venv/**'
+    - '!venv/**'
+    - '!env/**'
+    - '!.env*'
+    - '!node_modules/**'
+    - '!.serverless/**'
+    - '!.git/**'
+    - '!__pycache__/**'
+    - '!.pytest_cache/**'
+    - '!*.pyc'
+    - '!**/*.pyc'
+    - '!**/__pycache__/**'
+    - '!tests/**'
+    - '!docs/**'
+    - '!*.md'
+    - '!*.pdf'
+    - '!*.sh'
+    - '!setup*.py'
+    - '!er_diagram.py'
+    - '!*_diagram.py'
+    - '!export_*.py'
+    - '!migrate_*.py'
+    - '!test_*.py'
+    - '!*export*.json'
+    - '!*.sql'
+    
+resources:
+  Resources:
+    # Cost-optimized database option
+    # Uncomment ONE of the options below:
+    
+    # Option 1: Aurora Serverless v2 (Recommended)
+    # AuroraServerlessCluster:
+    #   Type: AWS::RDS::DBCluster
+    #   Properties:
+    #     Engine: aurora-postgresql
+    #     EngineVersion: '16.6'
+    #     DatabaseName: musically
+    #     MasterUsername: postgres
+    #     MasterUserPassword: ${env:DB_PASSWORD}
+    #     ServerlessV2ScalingConfiguration:
+    #       MinCapacity: 0.5
+    #       MaxCapacity: 2.0
+    #     DeletionProtection: false
+    
+    # Option 2: Standard RDS PostgreSQL (Cheapest)
+    # PostgreSQLDB:
+    #   Type: AWS::RDS::DBInstance
+    #   Properties:
+    #     DBInstanceIdentifier: musically-postgres
+    #     DBInstanceClass: db.t3.micro
+    #     Engine: postgres
+    #     EngineVersion: '16.6'
+    #     DBName: musically
+    #     MasterUsername: postgres
+    #     MasterUserPassword: ${env:DB_PASSWORD}
+    #     AllocatedStorage: 20
+    #     StorageType: gp2
+    #     DeletionProtection: false
+    #     BackupRetentionPeriod: 7

@@ -1,0 +1,92 @@
+service: musically-api
+
+provider:
+  name: aws
+  runtime: python3.11
+  region: us-east-1
+  profile: default
+  timeout: 15
+  memorySize: 512
+  environment:
+    DATABASE_URL: ${env:DATABASE_URL}
+    PROJECT_NAME: Musically
+    VERSION: 1.0.0
+    AWS_SECRET_NAME: ${env:AWS_SECRET_NAME}
+    SECRET_KEY: ${env:SECRET_KEY}
+    ALGORITHM: ${env:ALGORITHM}
+    ACCESS_TOKEN_EXPIRE_MINUTES: ${env:ACCESS_TOKEN_EXPIRE_MINUTES}
+    REFRESH_TOKEN_EXPIRE_DAYS: ${env:REFRESH_TOKEN_EXPIRE_DAYS}
+    # Firebase Configuration
+    FIREBASE_PROJECT_ID: ${env:FIREBASE_PROJECT_ID}
+    FIREBASE_PRIVATE_KEY_ID: ${env:FIREBASE_PRIVATE_KEY_ID}
+    FIREBASE_PRIVATE_KEY: ${env:FIREBASE_PRIVATE_KEY}
+    FIREBASE_CLIENT_EMAIL: ${env:FIREBASE_CLIENT_EMAIL}
+    FIREBASE_CLIENT_ID: ${env:FIREBASE_CLIENT_ID}
+    FIREBASE_CLIENT_X509_CERT_URL: ${env:FIREBASE_CLIENT_X509_CERT_URL}
+    FIREBASE_WEB_API_KEY: ${env:FIREBASE_WEB_API_KEY}
+
+functions:
+  # Single optimized function using layers
+  api:
+    handler: app.main.handler
+    timeout: 15
+    memorySize: 512
+    layers:
+      - { Ref: PythonRequirementsLambdaLayer }
+    vpc:
+      securityGroupIds:
+        - sg-0467571583addf515
+      subnetIds:
+        - subnet-0060694ba361c816b
+        - subnet-0985770f66be8e30d
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+
+layers:
+  pythonRequirements:
+    path: layer
+    name: ${self:service}-${self:provider.stage}-python-requirements
+    description: Python requirements layer
+    compatibleRuntimes:
+      - python3.11
+    retain: false
+
+plugins:
+  - serverless-python-requirements
+
+custom:
+  pythonRequirements:
+    layer: true
+    zip: true
+    slim: true
+    strip: true
+    pipCmdExtraArgs:
+      - --no-cache-dir
+    slimPatterns:
+      - '**/*.py[c|o]'
+      - '**/__pycache__*'
+      - '**/*.dist-info*'
+      - '**/*.egg-info*'
+      - '**/tests/**'
+      - '**/test/**'
+
+package:
+  individually: false
+  exclude:
+    - .venv/**
+    - venv/**
+    - node_modules/**
+    - .serverless/**
+    - .git/**
+    - __pycache__/**
+    - '*.pyc'
+    - '**/*.pyc'
+    - tests/**
+    - docs/**
+    - '*.md'
+    - '*.pdf'
+    - '*.sh'
+    - test_*.py
+    - requirements-full.txt

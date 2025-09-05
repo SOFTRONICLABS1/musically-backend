@@ -1,0 +1,243 @@
+service: musically-api
+
+provider:
+  name: aws
+  region: us-east-1
+  profile: default
+  iam:
+    role:
+      statements:
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+            - s3:PutObject
+            - s3:DeleteObject
+            - s3:ListBucket
+          Resource:
+            - "arn:aws:s3:::musically-content-dev"
+            - "arn:aws:s3:::musically-content-dev/*"
+        - Effect: Allow
+          Action:
+            - secretsmanager:GetSecretValue
+          Resource:
+            - "arn:aws:secretsmanager:us-east-1:342430171583:secret:musically/s3-credentials-*"
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:DeleteItem
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:UpdateItem
+            - dynamodb:DescribeTable
+          Resource:
+            - !Sub "${CacheTable.Arn}"
+            - !Sub "${SessionTable.Arn}"
+            - !Sub "${CacheTable.Arn}/*"
+            - !Sub "${SessionTable.Arn}/*"
+  
+  # ECR repository for container images
+  ecr:
+    images:
+      musically-api:
+        path: ./
+        file: Dockerfile
+        platform: linux/amd64
+      musically-music-extractor:
+        path: ./
+        file: Dockerfile.music
+        platform: linux/amd64
+
+functions:
+  # Firebase auth verification - No VPC needed for external API calls
+  firebase-auth:
+    image:
+      name: musically-api
+    timeout: 30
+    memorySize: 768
+    environment:
+      # Redis optional - will use DynamoDB + memory cache if not available
+      REDIS_URL: ${env:REDIS_URL, 'redis://localhost:6379/0'}
+      PROJECT_NAME: Musically
+      VERSION: 1.0.0
+      STAGE: dev
+      SECRET_KEY: ${env:SECRET_KEY}
+      ALGORITHM: ${env:ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${env:ACCESS_TOKEN_EXPIRE_MINUTES}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${env:REFRESH_TOKEN_EXPIRE_DAYS}
+      # S3 Configuration
+      S3_BUCKET_NAME: musically-content-dev
+      S3_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY}
+      # Firebase Configuration
+      FIREBASE_PROJECT_ID: ${env:FIREBASE_PROJECT_ID}
+      FIREBASE_PRIVATE_KEY_ID: ${env:FIREBASE_PRIVATE_KEY_ID}
+      FIREBASE_PRIVATE_KEY: ${env:FIREBASE_PRIVATE_KEY}
+      FIREBASE_CLIENT_EMAIL: ${env:FIREBASE_CLIENT_EMAIL}
+      FIREBASE_CLIENT_ID: ${env:FIREBASE_CLIENT_ID}
+      FIREBASE_CLIENT_X509_CERT_URL: ${env:FIREBASE_CLIENT_X509_CERT_URL}
+      FIREBASE_WEB_API_KEY: ${env:FIREBASE_WEB_API_KEY}
+      FIREBASE_ANDROID_CLIENT_ID: ${env:FIREBASE_ANDROID_CLIENT_ID}
+      FIREBASE_WEB_CLIENT_ID: ${env:FIREBASE_WEB_CLIENT_ID}
+      FIREBASE_IOS_CLIENT_ID: ${env:FIREBASE_IOS_CLIENT_ID}
+    events:
+      - httpApi:
+          path: /api/v1/auth/sso
+          method: POST
+      - httpApi:
+          path: /health
+          method: GET
+
+  # Database operations - No VPC needed with DynamoDB caching
+  api-database:
+    image:
+      name: musically-api
+    timeout: 45
+    memorySize: 1024
+    environment:
+      DATABASE_URL: !Sub "postgresql://postgres:YourSecurePassword123!@${MusicallDevDatabase.Endpoint.Address}:5432/musically?sslmode=require"
+      # Redis optional - will use DynamoDB + memory cache if not available
+      REDIS_URL: ${env:REDIS_URL, 'redis://localhost:6379/0'}
+      PROJECT_NAME: Musically
+      VERSION: 1.0.0
+      STAGE: dev
+      AWS_SECRET_NAME: ${env:AWS_SECRET_NAME}
+      SECRET_KEY: ${env:SECRET_KEY}
+      ALGORITHM: ${env:ALGORITHM}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${env:ACCESS_TOKEN_EXPIRE_MINUTES}
+      REFRESH_TOKEN_EXPIRE_DAYS: ${env:REFRESH_TOKEN_EXPIRE_DAYS}
+      # S3 Configuration
+      S3_BUCKET_NAME: musically-content-dev
+      S3_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY}
+      # Firebase Configuration
+      FIREBASE_PROJECT_ID: ${env:FIREBASE_PROJECT_ID}
+      FIREBASE_PRIVATE_KEY_ID: ${env:FIREBASE_PRIVATE_KEY_ID}
+      FIREBASE_PRIVATE_KEY: ${env:FIREBASE_PRIVATE_KEY}
+      FIREBASE_CLIENT_EMAIL: ${env:FIREBASE_CLIENT_EMAIL}
+      FIREBASE_CLIENT_ID: ${env:FIREBASE_CLIENT_ID}
+      FIREBASE_CLIENT_X509_CERT_URL: ${env:FIREBASE_CLIENT_X509_CERT_URL}
+      FIREBASE_WEB_API_KEY: ${env:FIREBASE_WEB_API_KEY}
+      FIREBASE_ANDROID_CLIENT_ID: ${env:FIREBASE_ANDROID_CLIENT_ID}
+      FIREBASE_WEB_CLIENT_ID: ${env:FIREBASE_WEB_CLIENT_ID}
+      FIREBASE_IOS_CLIENT_ID: ${env:FIREBASE_IOS_CLIENT_ID}
+    events:
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
+
+  # Music extraction with audio processing - Dedicated Lambda
+  music-extractor:
+    image:
+      name: musically-music-extractor
+    timeout: 120  # 2 minutes for audio processing
+    memorySize: 2048  # 2GB for audio analysis
+    environment:
+      PROJECT_NAME: Musically
+      VERSION: 1.0.0
+      STAGE: dev
+      # S3 Configuration
+      S3_BUCKET_NAME: musically-content-dev
+      S3_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: ${env:AWS_SECRET_ACCESS_KEY}
+      # YouTube API (if available)
+      YOUTUBE_API_KEY: ${env:YOUTUBE_API_KEY, ''}
+    events:
+      - httpApi:
+          path: /api/v1/music/extract
+          method: POST
+      - httpApi:
+          path: /api/v1/music/validate-youtube
+          method: POST
+      - httpApi:
+          path: /api/v1/music/analyze
+          method: POST
+
+# No plugins needed for container images
+plugins: []
+
+# Resources - RDS PostgreSQL t3.micro for development
+resources:
+  Resources:
+    # RDS PostgreSQL t3.micro - Cost-effective for development
+    MusicallDevDatabase:
+      Type: AWS::RDS::DBInstance
+      Properties:
+        DBInstanceIdentifier: musically-dev-postgres
+        DBInstanceClass: db.t3.micro
+        Engine: postgres
+        EngineVersion: '16.6'
+        DBName: musically
+        MasterUsername: postgres
+        MasterUserPassword: YourSecurePassword123!
+        AllocatedStorage: 20
+        StorageType: gp2
+        StorageEncrypted: true
+        PubliclyAccessible: true  # For development access
+        Port: 5432
+        DeletionProtection: false
+        BackupRetentionPeriod: 0  # No backups needed for dev
+        MultiAZ: false
+        DBSubnetGroupName: !Ref DatabaseSubnetGroup
+        VPCSecurityGroups:
+          - !Ref DatabaseSecurityGroup
+          
+    # DB Subnet Group
+    DatabaseSubnetGroup:
+      Type: AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupDescription: Subnet group for Musically dev database
+        SubnetIds:
+          - subnet-0b675c3764408585b  # us-east-1a
+          - subnet-02b6278feadf4f414  # us-east-1b
+          - subnet-0985770f66be8e30d  # us-east-1c
+        
+    # Security Group for RDS access
+    DatabaseSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Security group for Musically dev database
+        VpcId: vpc-0dc427b79d0d122b1
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 5432
+            ToPort: 5432
+            CidrIp: 0.0.0.0/0  # Open for dev - restrict in production
+    
+    # DynamoDB tables for hybrid caching
+    CacheTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: !Sub "musically-cache-${opt:stage, 'dev'}"
+        AttributeDefinitions:
+          - AttributeName: cache_key
+            AttributeType: S
+        KeySchema:
+          - AttributeName: cache_key
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TimeToLiveSpecification:
+          AttributeName: expires_at
+          Enabled: true
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: false
+    
+    SessionTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: !Sub "musically-sessions-${opt:stage, 'dev'}"
+        AttributeDefinitions:
+          - AttributeName: session_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: session_id
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        TimeToLiveSpecification:
+          AttributeName: expires_at
+          Enabled: true
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: false
+    
+    # Note: CloudFront CDN can be added later once API Gateway domain is stable
+    # For now, we'll rely on the hybrid caching (Memory + DynamoDB + Redis fallback)
