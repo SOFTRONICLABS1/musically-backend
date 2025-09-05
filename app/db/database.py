@@ -12,8 +12,8 @@ logger = logging.getLogger(__name__)
 # Create engine with conservative settings for Aurora Serverless
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_size=2,  # Conservative for t3.micro (20 connection limit)
-    max_overflow=3,  # Very limited overflow for Lambda
+    pool_size=1,  # Minimal pool for t3.micro to prevent connection leaks
+    max_overflow=1,  # Only 1 overflow connection per Lambda
     pool_pre_ping=True,  # Verify connections before using
     pool_recycle=300,  # Recycle connections every 5 minutes
     pool_timeout=30,  # Wait for available connection
@@ -75,6 +75,7 @@ def get_db_with_retry(max_retries=3, base_delay=1.0):
     database_warmed = False
     
     for attempt in range(max_retries):
+        db = None
         try:
             db = SessionLocal()
             # Test connection immediately
@@ -84,7 +85,7 @@ def get_db_with_retry(max_retries=3, base_delay=1.0):
             
         except (OperationalError, TimeoutError) as e:
             last_error = e
-            if 'db' in locals():
+            if db is not None:
                 db.close()
             
             # Check if this looks like a cold database issue
@@ -110,10 +111,17 @@ def get_db_with_retry(max_retries=3, base_delay=1.0):
                 raise last_error
                 
         except Exception as e:
-            if 'db' in locals():
+            if db is not None:
                 db.close()
             logger.error(f"Unexpected database error: {str(e)}")
             raise e
+        finally:
+            # Ensure session is always closed when exiting
+            if db is not None:
+                try:
+                    db.close()
+                except:
+                    pass
 
 
 def get_db():
