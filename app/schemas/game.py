@@ -7,6 +7,7 @@ from uuid import UUID
 class GameBase(BaseModel):
     title: str = Field(..., min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=2000)
+    thumbnail: Optional[str] = Field(None, description="Base64 encoded image")
 
 
 class GameCreate(GameBase):
@@ -16,6 +17,7 @@ class GameCreate(GameBase):
 class GameUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=255)
     description: Optional[str] = Field(None, max_length=2000)
+    thumbnail: Optional[str] = Field(None, description="Base64 encoded image")
     is_published: Optional[bool] = None
 
 
