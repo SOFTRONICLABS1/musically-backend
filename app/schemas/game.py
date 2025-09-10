@@ -86,3 +86,31 @@ class GameScoreResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class GameScoreListResponse(BaseModel):
+    scores: List[GameScoreResponse]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
+
+class LatestGamePlayedResponse(BaseModel):
+    game_id: UUID
+    game_name: str
+    content_id: UUID
+    content_name: str
+    score: float
+    last_played_time: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class LatestGamesPlayedListResponse(BaseModel):
+    games: List[LatestGamePlayedResponse]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int

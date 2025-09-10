@@ -8,7 +8,8 @@ from app.db.database import get_db
 from app.schemas.game import (
     GameCreate, GameUpdate, GameResponse, GameListResponse,
     ContentGameCreate, ContentGameResponse, GameWithContentResponse,
-    ContentWithGamesResponse, GameScoreCreate, GameScoreResponse
+    ContentWithGamesResponse, GameScoreCreate, GameScoreResponse, GameScoreListResponse,
+    LatestGamePlayedResponse, LatestGamesPlayedListResponse
 )
 from app.schemas.content import ContentResponse, ContentListResponse
 from app.services.game_service import GameService
@@ -416,4 +417,173 @@ async def record_game_score(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An error occurred while recording game score"
+        )
+
+
+@router.get("/scores", response_model=GameScoreListResponse)
+async def get_scores(
+    user_id: Optional[UUID] = Query(None, description="Filter by user ID"),
+    game_id: Optional[UUID] = Query(None, description="Filter by game ID"), 
+    content_id: Optional[UUID] = Query(None, description="Filter by content ID"),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get game scores with optional filtering"""
+    try:
+        scores, total = GameService.get_scores(
+            db, user_id=user_id, game_id=game_id, content_id=content_id, 
+            page=page, per_page=per_page
+        )
+        
+        total_pages = (total + per_page - 1) // per_page
+        
+        return GameScoreListResponse(
+            scores=[GameScoreResponse.from_orm(score) for score in scores],
+            total=total,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages
+        )
+        
+    except Exception as e:
+        logger.error(f"Get scores error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching scores"
+        )
+
+
+@router.get("/users/{user_id}/scores", response_model=GameScoreListResponse)
+async def get_user_scores(
+    user_id: UUID,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get all scores for a specific user"""
+    try:
+        scores, total = GameService.get_user_scores(db, user_id, page, per_page)
+        
+        total_pages = (total + per_page - 1) // per_page
+        
+        return GameScoreListResponse(
+            scores=[GameScoreResponse.from_orm(score) for score in scores],
+            total=total,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages
+        )
+        
+    except Exception as e:
+        logger.error(f"Get user scores error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching user scores"
+        )
+
+
+@router.get("/{game_id}/leaderboard", response_model=GameScoreListResponse)
+async def get_game_leaderboard(
+    game_id: UUID,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get leaderboard for a specific game"""
+    try:
+        # Verify game exists
+        game = GameService.get_game_by_id(db, game_id)
+        if not game:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Game not found"
+            )
+        
+        scores, total = GameService.get_game_leaderboard(db, game_id, page, per_page)
+        
+        total_pages = (total + per_page - 1) // per_page
+        
+        return GameScoreListResponse(
+            scores=[GameScoreResponse.from_orm(score) for score in scores],
+            total=total,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Get game leaderboard error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching game leaderboard"
+        )
+
+
+@router.get("/content/{content_id}/leaderboard", response_model=GameScoreListResponse)
+async def get_content_leaderboard(
+    content_id: UUID,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get leaderboard for specific content"""
+    try:
+        scores, total = GameService.get_content_leaderboard(db, content_id, page, per_page)
+        
+        total_pages = (total + per_page - 1) // per_page
+        
+        return GameScoreListResponse(
+            scores=[GameScoreResponse.from_orm(score) for score in scores],
+            total=total,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages
+        )
+        
+    except Exception as e:
+        logger.error(f"Get content leaderboard error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching content leaderboard"
+        )
+
+
+@router.get("/latest-played", response_model=LatestGamesPlayedListResponse)
+async def get_latest_games_played(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get latest unique games played by the current user (most recent play per game)"""
+    try:
+        games_data, total = GameService.get_latest_games_played(
+            db, current_user.id, page, per_page
+        )
+        
+        total_pages = (total + per_page - 1) // per_page
+        
+        # Convert dict data to Pydantic models
+        games = [LatestGamePlayedResponse(**game_data) for game_data in games_data]
+        
+        return LatestGamesPlayedListResponse(
+            games=games,
+            total=total,
+            page=page,
+            per_page=per_page,
+            total_pages=total_pages
+        )
+        
+    except Exception as e:
+        logger.error(f"Get latest games played error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An error occurred while fetching latest games played"
         )
