@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, desc
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 from uuid import UUID
 
 from app.models.user import Game, ContentGame, Content, User, GameScore
