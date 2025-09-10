@@ -6,7 +6,7 @@ import logging
 # Import based on available libraries
 import os
 
-if os.environ.get('AWS_LAMBDA_FUNCTION_NAME', '').endswith('music-extractor'):
+if os.environ.get('LAMBDA_FUNCTION_TYPE') == 'music-extractor':
     # Use enhanced service in music-extractor Lambda
     from app.services.music_extraction_service_enhanced import enhanced_music_extraction_service as music_extraction_service
 else:
@@ -29,7 +29,7 @@ async def extract_music_from_url(
         logger.info(f"Extracting music from URL: {url}")
         
         # Extract music data
-        if os.environ.get('AWS_LAMBDA_FUNCTION_NAME', '').endswith('music-extractor'):
+        if os.environ.get('LAMBDA_FUNCTION_TYPE') == 'music-extractor':
             # Use enhanced extraction in music Lambda
             metadata, notes_data = music_extraction_service.extract_music_from_social_link_enhanced(url)
         else:
@@ -141,7 +141,7 @@ async def analyze_audio_url(
         logger.info(f"Analyzing audio from URL: {url}")
         
         # Check if we're in the music-extractor Lambda
-        if not os.environ.get('AWS_LAMBDA_FUNCTION_NAME', '').endswith('music-extractor'):
+        if os.environ.get('LAMBDA_FUNCTION_TYPE') != 'music-extractor':
             return JSONResponse(
                 status_code=503,
                 content={
