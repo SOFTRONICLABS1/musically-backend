@@ -1,0 +1,39 @@
+# Core FastAPI dependencies
+fastapi==0.109.0
+mangum==0.17.0
+uvicorn[standard]==0.25.0
+python-multipart==0.0.6
+
+# Database
+sqlalchemy==2.0.25
+psycopg2-binary==2.9.9
+alembic==1.13.1
+
+# Authentication & Security
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+firebase-admin==6.4.0
+google-auth==2.26.2
+cryptography==41.0.7
+
+# AWS Services
+boto3==1.34.14
+botocore==1.34.14
+
+# Validation & Serialization
+pydantic==2.5.3
+email-validator==2.1.0.post1
+
+# Audio Processing (minimal - no librosa/soxr)
+yt-dlp==2023.12.30
+pydub==0.25.1
+audioread==3.0.1
+
+# Utilities
+python-dateutil==2.8.2
+pytz==2023.3.post1
+httpx==0.25.2
+requests==2.31.0
+
+# Logging
+structlog==24.1.0

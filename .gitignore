@@ -230,12 +230,10 @@ pids
 *.md
 *.pdf
 
-# Requirements files (keep main requirements.txt)
-requirements-*.txt
+# Requirements zip files (keep all .txt requirements files)
 .requirements.zip
 
-# Alembic (database migrations - keep the main files, ignore temp)
-alembic.ini
+# Alembic temporary files (keep main alembic.ini and versions/)
 
 # Configuration files that might contain secrets
 *.yml.backup
