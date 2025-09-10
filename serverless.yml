@@ -87,6 +87,18 @@ functions:
       - httpApi:
           path: /health
           method: GET
+      - httpApi:
+          path: /docs
+          method: GET
+      - httpApi:
+          path: /redoc
+          method: GET
+      - httpApi:
+          path: /openapi.json
+          method: GET
+      - httpApi:
+          path: /
+          method: GET
 
   # Database operations - No VPC needed with DynamoDB caching
   api-database:
@@ -123,7 +135,34 @@ functions:
       FIREBASE_IOS_CLIENT_ID: ${env:FIREBASE_IOS_CLIENT_ID}
     events:
       - httpApi:
-          path: /{proxy+}
+          path: /api/v1/auth/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api/v1/content/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api/v1/games/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api/v1/search/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api/v1/social/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api/v1/database/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api/v1/migration/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api/v1/admin/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api/v1/subscription/{proxy+}
+          method: ANY
+      - httpApi:
+          path: /api/v1/cache/{proxy+}
           method: ANY
 
   # Music extraction with audio processing - Dedicated Lambda
@@ -136,6 +175,7 @@ functions:
       PROJECT_NAME: Musically
       VERSION: 1.0.0
       STAGE: dev
+      LAMBDA_FUNCTION_TYPE: music-extractor
       # S3 Configuration
       S3_BUCKET_NAME: musically-content-dev
       S3_ACCESS_KEY_ID: ${env:AWS_ACCESS_KEY_ID}
