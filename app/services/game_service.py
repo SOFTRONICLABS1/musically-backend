@@ -625,8 +625,7 @@ class GameService:
         # Get highest score per user for the game
         logs_result = db.execute(text("""
             WITH user_best_scores AS (
-                SELECT user_id, MAX(score) as best_score,
-                       ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY score DESC, created_at DESC) as rn
+                SELECT user_id, MAX(score) as best_score
                 FROM game_score_logs 
                 WHERE game_id = :game_id
                 GROUP BY user_id
