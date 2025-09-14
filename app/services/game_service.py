@@ -500,6 +500,14 @@ class GameService:
         created_at = datetime.utcnow()
         
         try:
+            # Safely access attributes with defaults
+            accuracy = getattr(score_data, 'accuracy', None)
+            attempts = getattr(score_data, 'attempts', 1)
+            start_time = getattr(score_data, 'start_time', None)
+            end_time = getattr(score_data, 'end_time', None)
+            cycles = getattr(score_data, 'cycles', None)
+            level_config = getattr(score_data, 'level_config', None)
+            
             db.execute(text("""
                 INSERT INTO game_score_logs (
                     id, user_id, game_id, content_id, score, accuracy, attempts,
@@ -514,12 +522,12 @@ class GameService:
                 'game_id': score_data.game_id,
                 'content_id': score_data.content_id,
                 'score': score_data.score,
-                'accuracy': score_data.accuracy,
-                'attempts': score_data.attempts,
-                'start_time': score_data.start_time,
-                'end_time': score_data.end_time,
-                'cycles': score_data.cycles,
-                'level_config': json.dumps(score_data.level_config) if score_data.level_config else None,
+                'accuracy': accuracy,
+                'attempts': attempts,
+                'start_time': start_time,
+                'end_time': end_time,
+                'cycles': cycles,
+                'level_config': json.dumps(level_config) if level_config else None,
                 'created_at': created_at
             })
             db.commit()
@@ -532,16 +540,17 @@ class GameService:
                     self.game_id = score_data.game_id
                     self.content_id = score_data.content_id
                     self.score = score_data.score
-                    self.accuracy = score_data.accuracy
-                    self.attempts = score_data.attempts
-                    self.start_time = score_data.start_time
-                    self.end_time = score_data.end_time
-                    self.cycles = score_data.cycles
-                    self.level_config = score_data.level_config
+                    self.accuracy = accuracy
+                    self.attempts = attempts
+                    self.start_time = start_time
+                    self.end_time = end_time
+                    self.cycles = cycles
+                    self.level_config = level_config
                     self.created_at = created_at
                     
             return Result()
         except Exception as e:
+            logger.error(f"Database insert error: {e}")
             db.rollback()
             return None
     
