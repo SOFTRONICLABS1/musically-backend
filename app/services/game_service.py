@@ -508,29 +508,46 @@ class GameService:
             cycles = getattr(score_data, 'cycles', None)
             level_config = getattr(score_data, 'level_config', None)
             
-            db.execute(text("""
-                INSERT INTO game_score_logs (
-                    id, user_id, game_id, content_id, score, accuracy, attempts,
-                    start_time, end_time, cycles, level_config, created_at
-                ) VALUES (
-                    :id, :user_id, :game_id, :content_id, :score, :accuracy, :attempts,
-                    :start_time, :end_time, :cycles, :level_config, :created_at
-                )
-            """), {
-                'id': record_id,
-                'user_id': user_id,
-                'game_id': score_data.game_id,
-                'content_id': score_data.content_id,
-                'score': score_data.score,
-                'accuracy': accuracy,
-                'attempts': attempts,
-                'start_time': start_time,
-                'end_time': end_time,
-                'cycles': cycles,
-                'level_config': json.dumps(level_config) if level_config else None,
-                'created_at': created_at
-            })
-            db.commit()
+            # Retry logic for partition concurrency issues
+            max_retries = 3
+            for retry in range(max_retries):
+                try:
+                    db.execute(text("""
+                        INSERT INTO game_score_logs (
+                            id, user_id, game_id, content_id, score, accuracy, attempts,
+                            start_time, end_time, cycles, level_config, created_at
+                        ) VALUES (
+                            :id, :user_id, :game_id, :content_id, :score, :accuracy, :attempts,
+                            :start_time, :end_time, :cycles, :level_config, :created_at
+                        )
+                    """), {
+                        'id': record_id,
+                        'user_id': user_id,
+                        'game_id': score_data.game_id,
+                        'content_id': score_data.content_id,
+                        'score': score_data.score,
+                        'accuracy': accuracy,
+                        'attempts': attempts,
+                        'start_time': start_time,
+                        'end_time': end_time,
+                        'cycles': cycles,
+                        'level_config': json.dumps(level_config) if level_config else None,
+                        'created_at': created_at
+                    })
+                    db.commit()
+                    break  # Success, exit retry loop
+                except Exception as insert_e:
+                    db.rollback()
+                    if "cannot CREATE TABLE" in str(insert_e) and "PARTITION" in str(insert_e):
+                        # Partition creation conflict - wait and retry
+                        import time
+                        time.sleep(0.5 * (retry + 1))  # Exponential backoff
+                        if retry == max_retries - 1:
+                            logger.error(f"Partition creation conflict after {max_retries} retries: {insert_e}")
+                            raise insert_e
+                    else:
+                        # Other error - don't retry
+                        raise insert_e
             
             # Return simple result object
             class Result:
