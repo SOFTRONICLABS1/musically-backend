@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from uuid import UUID
 
@@ -74,6 +74,13 @@ class GameScoreCreate(BaseModel):
     game_id: UUID
     content_id: UUID
     score: float = Field(..., ge=0)
+    accuracy: Optional[float] = Field(None, ge=0, le=100, description="Accuracy percentage (0-100)")
+    
+    # High score metadata (only saved when achieving highest score)
+    start_time: Optional[datetime] = Field(None, description="Game start time")
+    end_time: Optional[datetime] = Field(None, description="Game end time") 
+    cycles: Optional[int] = Field(None, ge=0, description="Number of cycles")
+    level_config: Optional[Dict[str, Any]] = Field(None, description="Level configuration JSON")
 
 
 class GameScoreResponse(BaseModel):
@@ -82,6 +89,15 @@ class GameScoreResponse(BaseModel):
     game_id: UUID
     content_id: UUID
     score: float
+    accuracy: Optional[float]
+    attempts: int
+    
+    # High score metadata (only present when this is the highest score)
+    start_time: Optional[datetime]
+    end_time: Optional[datetime] 
+    cycles: Optional[int]
+    level_config: Optional[Dict[str, Any]]
+    
     created_at: datetime
 
     class Config:
@@ -110,6 +126,49 @@ class LatestGamePlayedResponse(BaseModel):
 
 class LatestGamesPlayedListResponse(BaseModel):
     games: List[LatestGamePlayedResponse]
+    total: int
+    page: int
+    per_page: int
+    total_pages: int
+
+
+class GameScoreLogCreate(BaseModel):
+    game_id: UUID
+    content_id: UUID
+    score: float = Field(..., ge=0)
+    accuracy: Optional[float] = Field(None, ge=0, le=100, description="Accuracy percentage (0-100)")
+    attempts: int = Field(1, ge=1, description="Attempt number for this session")
+    
+    # Game session metadata
+    start_time: Optional[datetime] = Field(None, description="Game start time")
+    end_time: Optional[datetime] = Field(None, description="Game end time") 
+    cycles: Optional[int] = Field(None, ge=0, description="Number of cycles")
+    level_config: Optional[Dict[str, Any]] = Field(None, description="Level configuration JSON")
+
+
+class GameScoreLogResponse(BaseModel):
+    id: UUID
+    user_id: UUID
+    game_id: UUID
+    content_id: UUID
+    score: float
+    accuracy: Optional[float]
+    attempts: int
+    
+    # Game session metadata
+    start_time: Optional[datetime]
+    end_time: Optional[datetime] 
+    cycles: Optional[int]
+    level_config: Optional[Dict[str, Any]]
+    
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class GameScoreLogListResponse(BaseModel):
+    logs: List[GameScoreLogResponse]
     total: int
     page: int
     per_page: int

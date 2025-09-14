@@ -470,3 +470,236 @@ class GameService:
             })
         
         return games_data, total
+
+    @staticmethod  
+    def create_score_log(db: Session, user_id: UUID, score_data) -> Optional:
+        """Create a new game score log entry - simplified version"""
+        from sqlalchemy import text
+        import uuid
+        from datetime import datetime
+        import json
+        
+        # Verify game and content exist and are linked
+        game = db.query(Game).filter(Game.id == score_data.game_id).first()
+        if not game:
+            return None
+            
+        content = db.query(Content).filter(Content.id == score_data.content_id).first()
+        if not content:
+            return None
+            
+        content_game = db.query(ContentGame).filter(
+            ContentGame.game_id == score_data.game_id,
+            ContentGame.content_id == score_data.content_id
+        ).first()
+        if not content_game:
+            return None
+        
+        # Insert using raw SQL to handle partitioned table
+        record_id = uuid.uuid4()
+        created_at = datetime.utcnow()
+        
+        try:
+            db.execute(text("""
+                INSERT INTO game_score_logs (
+                    id, user_id, game_id, content_id, score, accuracy, attempts,
+                    start_time, end_time, cycles, level_config, created_at
+                ) VALUES (
+                    :id, :user_id, :game_id, :content_id, :score, :accuracy, :attempts,
+                    :start_time, :end_time, :cycles, :level_config, :created_at
+                )
+            """), {
+                'id': record_id,
+                'user_id': user_id,
+                'game_id': score_data.game_id,
+                'content_id': score_data.content_id,
+                'score': score_data.score,
+                'accuracy': score_data.accuracy,
+                'attempts': score_data.attempts,
+                'start_time': score_data.start_time,
+                'end_time': score_data.end_time,
+                'cycles': score_data.cycles,
+                'level_config': json.dumps(score_data.level_config) if score_data.level_config else None,
+                'created_at': created_at
+            })
+            db.commit()
+            
+            # Return simple result object
+            class Result:
+                def __init__(self):
+                    self.id = record_id
+                    self.user_id = user_id
+                    self.game_id = score_data.game_id
+                    self.content_id = score_data.content_id
+                    self.score = score_data.score
+                    self.accuracy = score_data.accuracy
+                    self.attempts = score_data.attempts
+                    self.start_time = score_data.start_time
+                    self.end_time = score_data.end_time
+                    self.cycles = score_data.cycles
+                    self.level_config = score_data.level_config
+                    self.created_at = created_at
+                    
+            return Result()
+        except Exception as e:
+            db.rollback()
+            return None
+    
+    @staticmethod
+    def get_score_logs(db: Session, user_id=None, game_id=None, content_id=None, page=1, per_page=20):
+        """Get score logs - simplified version"""
+        from sqlalchemy import text
+        import json
+        
+        # Build basic query
+        where_conditions = []
+        params = {'limit': per_page, 'offset': (page - 1) * per_page}
+        
+        if user_id:
+            where_conditions.append("user_id = :user_id")
+            params['user_id'] = user_id
+        if game_id:
+            where_conditions.append("game_id = :game_id")
+            params['game_id'] = game_id
+        if content_id:
+            where_conditions.append("content_id = :content_id")
+            params['content_id'] = content_id
+            
+        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        
+        # Get count
+        count_result = db.execute(text(f"SELECT COUNT(*) FROM game_score_logs {where_clause}"), params)
+        total = count_result.scalar() or 0
+        
+        # Get logs
+        logs_result = db.execute(text(f"""
+            SELECT id, user_id, game_id, content_id, score, accuracy, attempts,
+                   start_time, end_time, cycles, level_config, created_at
+            FROM game_score_logs 
+            {where_clause}
+            ORDER BY created_at DESC
+            LIMIT :limit OFFSET :offset
+        """), params)
+        
+        logs = []
+        for row in logs_result:
+            log = {
+                'id': row[0],
+                'user_id': row[1],
+                'game_id': row[2], 
+                'content_id': row[3],
+                'score': float(row[4]),
+                'accuracy': float(row[5]) if row[5] else None,
+                'attempts': row[6],
+                'start_time': row[7],
+                'end_time': row[8],
+                'cycles': row[9],
+                'level_config': json.loads(row[10]) if row[10] else None,
+                'created_at': row[11]
+            }
+            logs.append(log)
+        
+        return logs, total
+    
+    @staticmethod
+    def get_user_score_logs(db: Session, user_id: UUID, page: int = 1, per_page: int = 20):
+        """Get all score logs for a specific user"""
+        return GameService.get_score_logs(db, user_id=user_id, page=page, per_page=per_page)
+    
+    @staticmethod
+    def get_game_leaderboard_from_logs(db: Session, game_id: UUID, page: int = 1, per_page: int = 20):
+        """Get leaderboard for a specific game using highest scores from logs"""
+        from sqlalchemy import text
+        import json
+        
+        params = {'game_id': game_id, 'limit': per_page, 'offset': (page - 1) * per_page}
+        
+        # Get count of unique users for this game
+        count_result = db.execute(text("""
+            SELECT COUNT(DISTINCT user_id) 
+            FROM game_score_logs 
+            WHERE game_id = :game_id
+        """), params)
+        total = count_result.scalar() or 0
+        
+        # Get highest score per user for the game
+        logs_result = db.execute(text("""
+            WITH user_best_scores AS (
+                SELECT user_id, MAX(score) as best_score,
+                       ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY score DESC, created_at DESC) as rn
+                FROM game_score_logs 
+                WHERE game_id = :game_id
+                GROUP BY user_id
+                ORDER BY best_score DESC
+                LIMIT :limit OFFSET :offset
+            )
+            SELECT gsl.user_id, gsl.score, gsl.accuracy, gsl.attempts, 
+                   gsl.start_time, gsl.end_time, gsl.cycles, gsl.level_config, gsl.created_at
+            FROM game_score_logs gsl
+            INNER JOIN user_best_scores ubs ON gsl.user_id = ubs.user_id AND gsl.score = ubs.best_score
+            WHERE gsl.game_id = :game_id
+            ORDER BY gsl.score DESC, gsl.created_at DESC
+        """), params)
+        
+        leaderboard_data = []
+        for row in logs_result:
+            entry = {
+                'user_id': row[0],
+                'score': float(row[1]),
+                'accuracy': float(row[2]) if row[2] else None,
+                'attempts': row[3],
+                'start_time': row[4],
+                'end_time': row[5],
+                'cycles': row[6],
+                'level_config': json.loads(row[7]) if row[7] else None,
+                'created_at': row[8]
+            }
+            leaderboard_data.append(entry)
+        
+        return leaderboard_data, total
+    
+    @staticmethod
+    def get_latest_games_played_from_logs(db: Session, user_id: UUID, page: int = 1, per_page: int = 20):
+        """Get latest unique games played by user from score logs"""
+        from sqlalchemy import text
+        
+        params = {'user_id': user_id, 'limit': per_page, 'offset': (page - 1) * per_page}
+        
+        # Get count of unique games played by user
+        count_result = db.execute(text("""
+            SELECT COUNT(DISTINCT game_id) 
+            FROM game_score_logs 
+            WHERE user_id = :user_id
+        """), params)
+        total = count_result.scalar() or 0
+        
+        # Get latest play per game
+        logs_result = db.execute(text("""
+            WITH latest_plays AS (
+                SELECT game_id, content_id, score, created_at,
+                       ROW_NUMBER() OVER (PARTITION BY game_id ORDER BY created_at DESC) as rn
+                FROM game_score_logs 
+                WHERE user_id = :user_id
+            )
+            SELECT lp.game_id, g.title as game_name, lp.content_id, c.title as content_name, 
+                   lp.score, lp.created_at as last_played_time
+            FROM latest_plays lp
+            JOIN games g ON lp.game_id = g.id
+            JOIN content c ON lp.content_id = c.id
+            WHERE lp.rn = 1
+            ORDER BY lp.created_at DESC
+            LIMIT :limit OFFSET :offset
+        """), params)
+        
+        games_data = []
+        for row in logs_result:
+            games_data.append({
+                'game_id': row[0],
+                'game_name': row[1],
+                'content_id': row[2],
+                'content_name': row[3],
+                'score': float(row[4]),
+                'last_played_time': row[5]
+            })
+        
+        return games_data, total

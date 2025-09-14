@@ -9,17 +9,17 @@ import random
 
 logger = logging.getLogger(__name__)
 
-# Create engine with conservative settings for Aurora Serverless
+# Create engine with minimal settings for t3.micro compatibility
 engine = create_engine(
     settings.DATABASE_URL,
-    pool_size=2,  # Balanced pool for performance vs connection limits
-    max_overflow=2,  # Allow some overflow for peak traffic
+    pool_size=1,  # Minimal pool for t3.micro connection limits
+    max_overflow=1,  # Maximum 2 total connections 
     pool_pre_ping=True,  # Verify connections before using
-    pool_recycle=300,  # Recycle connections every 5 minutes
-    pool_timeout=20,  # Reduced timeout for faster failover
+    pool_recycle=180,  # Recycle connections every 3 minutes
+    pool_timeout=10,  # Shorter timeout for faster failover
     connect_args={
-        "connect_timeout": 8,  # Faster connection establishment
-        "options": "-c statement_timeout=25000",  # 25 second statement timeout
+        "connect_timeout": 5,  # Faster connection establishment
+        "options": "-c statement_timeout=20000",  # 20 second statement timeout
         "sslmode": "require"  # Ensure SSL is used
     }
 )

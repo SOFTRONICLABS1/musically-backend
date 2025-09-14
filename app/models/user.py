@@ -169,6 +169,15 @@ class GameScore(Base):
     game_id = Column(UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False)
     content_id = Column(UUID(as_uuid=True), ForeignKey("content.id", ondelete="CASCADE"), nullable=False)
     score = Column(DECIMAL(10,2), nullable=False)
+    accuracy = Column(DECIMAL(5,2), nullable=True)  # Percentage accuracy (0-100)
+    attempts = Column(Integer, default=1, nullable=False)  # Auto-increments on each API hit
+    
+    # High score metadata (only stored when achieving highest score)
+    start_time = Column(DateTime, nullable=True)  # Game start time for high score
+    end_time = Column(DateTime, nullable=True)  # Game end time for high score
+    cycles = Column(Integer, nullable=True)  # Custom cycles count for high score
+    level_config = Column(JSONB, nullable=True)  # {"level": "hard", "BPM": 120}
+    
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -216,4 +225,35 @@ class UserSubscription(Base):
     # Unique constraint to prevent duplicate subscriptions
     __table_args__ = (
         UniqueConstraint('owner_user_id', 'subscriber_user_id', name='unique_subscription'),
+    )
+
+
+class GameScoreLog(Base):
+    __tablename__ = "game_score_logs"
+    
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    game_id = Column(UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False)
+    content_id = Column(UUID(as_uuid=True), ForeignKey("content.id", ondelete="CASCADE"), nullable=False)
+    score = Column(DECIMAL(10,2), nullable=False)
+    accuracy = Column(DECIMAL(5,2), nullable=True)  # Percentage accuracy (0-100)
+    attempts = Column(Integer, default=1, nullable=False)  # Can track session attempt number
+    
+    # Game session metadata
+    start_time = Column(DateTime, nullable=True)  # Game start time
+    end_time = Column(DateTime, nullable=True)  # Game end time
+    cycles = Column(Integer, nullable=True)  # Custom cycles count
+    level_config = Column(JSONB, nullable=True)  # {"level": "hard", "BPM": 120}
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    # Relationships
+    user = relationship("User", backref="game_score_logs")
+    game = relationship("Game", backref="game_score_logs") 
+    content = relationship("Content", backref="game_score_logs")
+    
+    # Partitioning configuration - will be handled in migration
+    __table_args__ = (
+        # Add indexes for common query patterns
+        # Primary queries: user_id, game_id, content_id, created_at
     )
