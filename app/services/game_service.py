@@ -475,7 +475,7 @@ class GameService:
                 'start_time': row[7],
                 'end_time': row[8],
                 'cycles': row[9],
-                'level_config': json.loads(row[10]) if row[10] else None,
+                'level_config': row[10] if row[10] else None,
                 'created_at': row[11]
             }
             logs.append(log)
@@ -531,7 +531,7 @@ class GameService:
                 'start_time': row[4],
                 'end_time': row[5],
                 'cycles': row[6],
-                'level_config': json.loads(row[7]) if row[7] else None,
+                'level_config': row[7] if row[7] else None,
                 'created_at': row[8]
             }
             leaderboard_data.append(entry)
