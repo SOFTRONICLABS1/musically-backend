@@ -4,7 +4,7 @@ from typing import List, Optional, Tuple, Dict
 from uuid import UUID
 
 from app.models.user import Game, ContentGame, Content, User, GameScore
-from app.schemas.game import GameCreate, GameUpdate, GameScoreCreate
+from app.schemas.game import GameCreate, GameUpdate, GameScoreCreate, GameScoreLogCreate
 import logging
 
 logger = logging.getLogger(__name__)
@@ -472,7 +472,7 @@ class GameService:
         return games_data, total
 
     @staticmethod  
-    def create_score_log(db: Session, user_id: UUID, score_data) -> Optional:
+    def create_score_log(db: Session, user_id: UUID, score_data: GameScoreLogCreate) -> Optional[object]:
         """Create a new game score log entry - simplified version"""
         from sqlalchemy import text
         import uuid
