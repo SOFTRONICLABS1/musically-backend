@@ -70,46 +70,6 @@ class ContentWithGamesResponse(BaseModel):
     total_pages: int
 
 
-class GameScoreCreate(BaseModel):
-    game_id: UUID
-    content_id: UUID
-    score: float = Field(..., ge=0)
-    accuracy: Optional[float] = Field(None, ge=0, le=100, description="Accuracy percentage (0-100)")
-    
-    # High score metadata (only saved when achieving highest score)
-    start_time: Optional[datetime] = Field(None, description="Game start time")
-    end_time: Optional[datetime] = Field(None, description="Game end time") 
-    cycles: Optional[int] = Field(None, ge=0, description="Number of cycles")
-    level_config: Optional[Dict[str, Any]] = Field(None, description="Level configuration JSON")
-
-
-class GameScoreResponse(BaseModel):
-    id: UUID
-    user_id: UUID
-    game_id: UUID
-    content_id: UUID
-    score: float
-    accuracy: Optional[float]
-    attempts: int
-    
-    # High score metadata (only present when this is the highest score)
-    start_time: Optional[datetime]
-    end_time: Optional[datetime] 
-    cycles: Optional[int]
-    level_config: Optional[Dict[str, Any]]
-    
-    created_at: datetime
-
-    class Config:
-        from_attributes = True
-
-
-class GameScoreListResponse(BaseModel):
-    scores: List[GameScoreResponse]
-    total: int
-    page: int
-    per_page: int
-    total_pages: int
 
 
 class LatestGamePlayedResponse(BaseModel):

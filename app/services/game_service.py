@@ -3,8 +3,8 @@ from sqlalchemy import and_, or_, desc
 from typing import List, Optional, Tuple, Dict
 from uuid import UUID
 
-from app.models.user import Game, ContentGame, Content, User, GameScore
-from app.schemas.game import GameCreate, GameUpdate, GameScoreCreate, GameScoreLogCreate
+from app.models.user import Game, ContentGame, Content, User
+from app.schemas.game import GameCreate, GameUpdate, GameScoreLogCreate
 import logging
 
 logger = logging.getLogger(__name__)
@@ -324,152 +324,7 @@ class GameService:
         
         return True
     
-    @staticmethod
-    def record_score(db: Session, user_id: UUID, score_data: GameScoreCreate) -> Optional[GameScore]:
-        """Record a game score for user-game-content combination"""
-        
-        # Verify game exists
-        game = db.query(Game).filter(Game.id == score_data.game_id).first()
-        if not game:
-            return None
-        
-        # Verify content exists
-        content = db.query(Content).filter(Content.id == score_data.content_id).first()
-        if not content:
-            return None
-        
-        # Check if score already exists for this combination
-        existing_score = db.query(GameScore).filter(
-            and_(
-                GameScore.user_id == user_id,
-                GameScore.game_id == score_data.game_id,
-                GameScore.content_id == score_data.content_id
-            )
-        ).first()
-        
-        if existing_score:
-            # Update existing score if new score is better
-            if score_data.score > existing_score.score:
-                existing_score.score = score_data.score
-                from datetime import datetime
-                existing_score.created_at = datetime.utcnow()
-                db.commit()
-                db.refresh(existing_score)
-            return existing_score
-        else:
-            # Create new score record
-            game_score = GameScore(
-                user_id=user_id,
-                game_id=score_data.game_id,
-                content_id=score_data.content_id,
-                score=score_data.score
-            )
-            
-            db.add(game_score)
-            db.commit()
-            db.refresh(game_score)
-            
-            return game_score
 
-    @staticmethod
-    def get_scores(
-        db: Session, 
-        user_id: Optional[UUID] = None,
-        game_id: Optional[UUID] = None,
-        content_id: Optional[UUID] = None,
-        page: int = 1,
-        per_page: int = 20
-    ) -> Tuple[List[GameScore], int]:
-        """Get game scores with optional filtering"""
-        query = db.query(GameScore)
-        
-        # Apply filters
-        if user_id:
-            query = query.filter(GameScore.user_id == user_id)
-        if game_id:
-            query = query.filter(GameScore.game_id == game_id)
-        if content_id:
-            query = query.filter(GameScore.content_id == content_id)
-        
-        # Get total count
-        total = query.count()
-        
-        # Apply pagination and ordering (highest scores first, then most recent)
-        scores = query.order_by(GameScore.score.desc(), GameScore.created_at.desc())\
-                      .offset((page - 1) * per_page)\
-                      .limit(per_page)\
-                      .all()
-        
-        return scores, total
-
-    @staticmethod
-    def get_user_scores(db: Session, user_id: UUID, page: int = 1, per_page: int = 20) -> Tuple[List[GameScore], int]:
-        """Get all scores for a specific user"""
-        return GameService.get_scores(db, user_id=user_id, page=page, per_page=per_page)
-
-    @staticmethod
-    def get_game_leaderboard(db: Session, game_id: UUID, page: int = 1, per_page: int = 20) -> Tuple[List[GameScore], int]:
-        """Get leaderboard for a specific game (top scores across all content)"""
-        return GameService.get_scores(db, game_id=game_id, page=page, per_page=per_page)
-
-    @staticmethod
-    def get_content_leaderboard(db: Session, content_id: UUID, page: int = 1, per_page: int = 20) -> Tuple[List[GameScore], int]:
-        """Get leaderboard for specific content within a game"""
-        return GameService.get_scores(db, content_id=content_id, page=page, per_page=per_page)
-
-    @staticmethod
-    def get_latest_games_played(db: Session, user_id: UUID, page: int = 1, per_page: int = 20) -> Tuple[List[Dict], int]:
-        """Get latest unique games played by user (most recent play per game)"""
-        from sqlalchemy import func, desc
-        from app.models.user import Content
-        
-        # Create a subquery to get the latest score for each game by the user
-        latest_scores_subquery = db.query(
-            GameScore.game_id,
-            func.max(GameScore.created_at).label('latest_play_time')
-        ).filter(
-            GameScore.user_id == user_id
-        ).group_by(GameScore.game_id).subquery()
-        
-        # Join with the main query to get full details of the latest plays
-        query = db.query(
-            GameScore.game_id,
-            Game.title.label('game_name'),
-            GameScore.content_id,
-            Content.title.label('content_name'),
-            GameScore.score,
-            GameScore.created_at.label('last_played_time')
-        ).join(
-            Game, GameScore.game_id == Game.id
-        ).join(
-            Content, GameScore.content_id == Content.id
-        ).join(
-            latest_scores_subquery,
-            (GameScore.game_id == latest_scores_subquery.c.game_id) &
-            (GameScore.created_at == latest_scores_subquery.c.latest_play_time)
-        ).filter(
-            GameScore.user_id == user_id
-        ).order_by(desc(GameScore.created_at))
-        
-        # Get total count
-        total = query.count()
-        
-        # Apply pagination
-        results = query.offset((page - 1) * per_page).limit(per_page).all()
-        
-        # Convert to dictionaries
-        games_data = []
-        for result in results:
-            games_data.append({
-                'game_id': result.game_id,
-                'game_name': result.game_name,
-                'content_id': result.content_id,
-                'content_name': result.content_name,
-                'score': float(result.score),
-                'last_played_time': result.last_played_time
-            })
-        
-        return games_data, total
 
     @staticmethod  
     def create_score_log(db: Session, user_id: UUID, score_data: GameScoreLogCreate) -> Optional[object]:

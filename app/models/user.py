@@ -144,7 +144,6 @@ class Game(Base):
     # Relationships
     creator = relationship("User", back_populates="games")
     content_games = relationship("ContentGame", back_populates="game", cascade="all, delete-orphan")
-    game_scores = relationship("GameScore", back_populates="game", cascade="all, delete-orphan")
 
 
 class ContentGame(Base):
@@ -160,30 +159,6 @@ class ContentGame(Base):
     content = relationship("Content", backref="content_games")
     game = relationship("Game", back_populates="content_games")
 
-
-class GameScore(Base):
-    __tablename__ = "game_scores"
-    
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    game_id = Column(UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"), nullable=False)
-    content_id = Column(UUID(as_uuid=True), ForeignKey("content.id", ondelete="CASCADE"), nullable=False)
-    score = Column(DECIMAL(10,2), nullable=False)
-    accuracy = Column(DECIMAL(5,2), nullable=True)  # Percentage accuracy (0-100)
-    attempts = Column(Integer, default=1, nullable=False)  # Auto-increments on each API hit
-    
-    # High score metadata (only stored when achieving highest score)
-    start_time = Column(DateTime, nullable=True)  # Game start time for high score
-    end_time = Column(DateTime, nullable=True)  # Game end time for high score
-    cycles = Column(Integer, nullable=True)  # Custom cycles count for high score
-    level_config = Column(JSONB, nullable=True)  # {"level": "hard", "BPM": 120}
-    
-    created_at = Column(DateTime, default=datetime.utcnow)
-    
-    # Relationships
-    user = relationship("User", backref="game_scores")
-    game = relationship("Game", back_populates="game_scores")
-    content = relationship("Content", backref="game_scores")
 
 
 class AdminUser(Base):
