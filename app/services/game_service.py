@@ -244,43 +244,6 @@ class GameService:
         
         return query.all(), total
     
-    @staticmethod
-    def increment_play_count(db: Session, game_id: UUID) -> bool:
-        """Increment play count for game"""
-        
-        game = db.query(Game).filter(Game.id == game_id).first()
-        if not game:
-            return False
-        
-        game.play_count += 1
-        db.commit()
-        
-        return True
-    
-    @staticmethod
-    def increment_content_game_play_count(db: Session, content_id: UUID, game_id: UUID) -> bool:
-        """Increment play count for content-game pair"""
-        
-        content_game = db.query(ContentGame).filter(
-            and_(
-                ContentGame.content_id == content_id,
-                ContentGame.game_id == game_id
-            )
-        ).first()
-        
-        if not content_game:
-            return False
-        
-        content_game.play_count += 1
-        
-        # Also increment the overall game play count
-        game = db.query(Game).filter(Game.id == game_id).first()
-        if game:
-            game.play_count += 1
-        
-        db.commit()
-        
-        return True
     
     @staticmethod
     def publish_game(db: Session, game_id: UUID, creator_id: UUID) -> bool:

@@ -101,39 +101,6 @@ async def get_my_games(
         )
 
 
-@router.get("/latest-played", response_model=LatestGamesPlayedListResponse)
-async def get_latest_games_played(
-    page: int = Query(1, ge=1),
-    per_page: int = Query(20, ge=1, le=100),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Get latest unique games played by the current user (most recent play per game)"""
-    try:
-        games_data, total = GameService.get_latest_games_played(
-            db, current_user.id, page, per_page
-        )
-        
-        total_pages = (total + per_page - 1) // per_page
-        
-        # Convert dict data to Pydantic models
-        games = [LatestGamePlayedResponse(**game_data) for game_data in games_data]
-        
-        return LatestGamesPlayedListResponse(
-            games=games,
-            total=total,
-            page=page,
-            per_page=per_page,
-            total_pages=total_pages
-        )
-        
-    except Exception as e:
-        logger.error(f"Get latest games played error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while fetching latest games played"
-        )
-
 
 # NEW GAME SCORE LOGS ENDPOINTS (Append-only approach)
 
@@ -566,36 +533,6 @@ async def unpublish_game(
         )
 
 
-@router.post("/{game_id}/content/{content_id}/play")
-async def increment_play_count(
-    game_id: UUID,
-    content_id: UUID,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Increment play count for content-game pair"""
-    try:
-        success = GameService.increment_content_game_play_count(db, content_id, game_id)
-        
-        if not success:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Content-game combination not found"
-            )
-        
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content={"message": "Play count incremented successfully"}
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Increment play count error: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred while incrementing play count"
-        )
 
 
 
