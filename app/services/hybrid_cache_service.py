@@ -274,14 +274,16 @@ class HybridCacheService:
                     
                     if 'Item' in response:
                         item = response['Item']
-                        if item['expires_at'] > current_time:
+                        # Convert DynamoDB Decimal to float for comparison
+                        expires_at_float = float(item['expires_at'])
+                        if expires_at_float > current_time:
                             value = json.loads(item['cache_value'])
                             
                             # Store back in memory cache for next access
-                            if item['expires_at'] - current_time <= self.memory_ttl:
+                            if expires_at_float - current_time <= self.memory_ttl:
                                 self._memory_cache[key] = {
                                     'value': item['cache_value'],
-                                    'expires_at': item['expires_at'],
+                                    'expires_at': expires_at_float,
                                     'created_at': current_time
                                 }
                             

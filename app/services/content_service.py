@@ -345,7 +345,7 @@ class ContentService:
                 contents_dict.append(content_dict)
         
         cache_data = {'contents': contents_dict, 'total': total}
-        hybrid_cache.set(cache_key, cache_data, 180)  # 3 min cache for lists
+        hybrid_cache.set(cache_key, cache_data, 86400)  # 24 hour cache for public content
         
         return contents, total
     
